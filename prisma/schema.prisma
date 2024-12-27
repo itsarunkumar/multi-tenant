@@ -1,54 +1,81 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// Prisma Client Generator
 generator client {
   provider = "prisma-client-js"
 }
 
+// Database Connection
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @map("_id")
-  name          String
-  email         String
-  emailVerified Boolean
-  image         String?
-  createdAt     DateTime
-  updatedAt     DateTime
-  sessions      Session[]
-  accounts      Account[]
+// ================================
+// 🚀 Tenant Model (Multitenancy)
+// ================================
+model Tenant {
+  id        String   @id @default(cuid()) @map("_id")
+  name      String
+  subdomain String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([email])
-  @@map("user")
+  // One-to-Many: A Tenant can have multiple Users
+  users User[] @relation("TenantUsers")
+
+  // One-to-One: A Tenant can have one Owner User
+  ownerId String? @unique
+  owner   User?   @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+// ================================
+// 👤 User Model
+// ================================
+model User {
+  id            String   @id @default(cuid()) @map("_id")
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Tenant Relationship (One-to-Many)
+  tenantId String?
+  tenant   Tenant? @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  // Tenant Ownership (One-to-One, Inverse Side)
+  ownedTenant Tenant?   @relation("TenantOwner")
+  Session     Session[]
+  Account     Account[]
+}
+
+// ================================
+// 🔑 Session Model
+// ================================
 model Session {
-  id        String   @id @map("_id")
+  id        String   @id @default(cuid()) @map("_id")
+  token     String   @unique
   expiresAt DateTime
-  token     String
-  createdAt DateTime
-  updatedAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   ipAddress String?
   userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
-  @@map("session")
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ================================
+// 🛡️ Account Model
+// ================================
 model Account {
-  id                    String    @id @map("_id")
-  accountId             String
-  providerId            String
-  userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String @id @default(cuid()) @map("_id")
+  providerId String
+  accountId  String
+  userId     String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -56,28 +83,20 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  createdAt             DateTime
-  updatedAt             DateTime
 
-  @@map("account")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
+// ================================
+// 📧 Verification Model
+// ================================
 model Verification {
-  id         String    @id @map("_id")
+  id         String   @id @default(cuid()) @map("_id")
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime?
-  updatedAt  DateTime?
 
-  @@map("verification")
-}
-
-// this is for multitenant
-model Tenant {
-  id        String   @id @default(cuid()) @map("_id")
-  name      String
-  subdomain String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

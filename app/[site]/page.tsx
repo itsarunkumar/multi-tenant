@@ -12,6 +12,7 @@ export default async function SubdomainPage({
   try {
     const tenant = await prisma.tenant.findUnique({
       where: { subdomain: site },
+      include: { users: true, owner: true },
     });
     console.log("SubdomainPage: Tenant retrieved:", tenant);
 

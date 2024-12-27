@@ -1,9 +1,19 @@
 // app/api/create-tenant/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
     const { name, subdomain } = await request.json();
 
     if (!name || !subdomain) {
@@ -25,12 +35,20 @@ export async function POST(request: NextRequest) {
     }
 
     const newTenant = await prisma.tenant.create({
-      data: { name, subdomain },
+      data: {
+        name,
+        subdomain,
+        owner: {
+          connect: {
+            id: session.user.id,
+          },
+        },
+      },
     });
 
     return NextResponse.json(newTenant, { status: 201 });
   } catch (error) {
-    console.error("Error creating tenant:", error);
+    console.log("Error creating tenant:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
